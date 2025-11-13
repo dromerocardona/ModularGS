@@ -9,6 +9,7 @@ from communication import Communication
 from serial.tools import list_ports
 from typing import Iterable
 from map import GPSMap
+from data import Data
 
 def get_available_serial_ports() -> Iterable[str]:
     return map(lambda c: c.device, list_ports.comports())
@@ -30,7 +31,8 @@ class GroundStation(QMainWindow):
         self.showMaximized()
         screen_geometry = QApplication.desktop().screenGeometry()
 
-        self.comm = Communication("COM4") # Initialize communication
+        self.data = Data() # Get preferences and other data
+        self.comm = Communication(self.data.getPreference("port")) # Initialize communication
 
         self.central_widget = QWidget(self)
         self.setCentralWidget(self.central_widget)
@@ -90,9 +92,10 @@ class GroundStation(QMainWindow):
         self.graphs_widget = QWidget()
         graphs_layout = QVBoxLayout()
         self.graphs_widget.setLayout(graphs_layout)
-        self.graphs_widget.setStyleSheet("background-color: #e6e6e6;")
-        map = GPSMap()
-        map.location_updated.connect(map.update_map)
+        if (self.data.getPreference("GPS")):
+            self.graphs_widget.setStyleSheet("background-color: #e6e6e6;")
+            map = GPSMap()
+            map.location_updated.connect(map.update_map)
         graphs_layout.addWidget(map.win)
         graphs_grid = QGridLayout()
         graphs_layout.addLayout(graphs_grid)
