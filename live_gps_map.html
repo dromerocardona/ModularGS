@@ -1,0 +1,32 @@
+
+            <!DOCTYPE html>
+            <html>
+            <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+            <style>html, body, #map { height:100%; margin:0; padding:0; }</style>
+            </head>
+            <body>
+            <div id="map"></div>
+            <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+            <script>
+                var map = L.map('map').setView([38.3780916, -79.6119949], 17);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+                // Create a single marker that we'll move later
+                var marker = L.marker([38.3780916, -79.6119949]).addTo(map);
+
+                // Exposed function for Python to call via runJavaScript
+                function updateMarker(lat, lon) {
+                try {
+                    marker.setLatLng([lat, lon]);
+                    map.setView([lat, lon]);
+                } catch (e) {
+                    console.error('updateMarker error:', e);
+                }
+                }
+            </script>
+            </body>
+            </html>
+            
