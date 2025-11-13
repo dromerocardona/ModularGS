@@ -1,0 +1,9 @@
+{
+    "theme": "dark",
+    "fields": [],
+    "graphs": {},
+    "port": "COM4",
+    "baudrate": 112500,
+    "commands": [],
+    "GPS": true
+}
