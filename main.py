@@ -30,7 +30,7 @@ class GroundStation(QMainWindow):
         self.showMaximized()
         screen_geometry = QApplication.desktop().screenGeometry()
 
-        # self.comm = Communication("COM4") # Initialize communication
+        self.comm = Communication("COM4") # Initialize communication
 
         self.central_widget = QWidget(self)
         self.setCentralWidget(self.central_widget)
@@ -38,9 +38,8 @@ class GroundStation(QMainWindow):
         
         ### Header Layout ###
 
-        header_layout = QHBoxLayout()
-        main_layout.addLayout(header_layout)
         header_widget = QWidget()
+        header_layout = QHBoxLayout()
         header_widget.setLayout(header_layout)
         header_height = screen_geometry.height() // 15
         header_widget.setFixedHeight(header_height)
@@ -88,14 +87,13 @@ class GroundStation(QMainWindow):
 
         # Graphs layout
 
-        graphs_layout = QVBoxLayout()
-        map = GPSMap()
-        map.location_updated.connect(map.update_map)
-        map.update_gui()
-        graphs_layout.addWidget(map.win)
         self.graphs_widget = QWidget()
+        graphs_layout = QVBoxLayout()
         self.graphs_widget.setLayout(graphs_layout)
         self.graphs_widget.setStyleSheet("background-color: #e6e6e6;")
+        map = GPSMap()
+        map.location_updated.connect(map.update_map)
+        graphs_layout.addWidget(map.win)
         graphs_grid = QGridLayout()
         graphs_layout.addLayout(graphs_grid)
         content_layout.addWidget(self.graphs_widget)
@@ -112,6 +110,7 @@ class GroundStation(QMainWindow):
     
     def createToolbars(self):
         main_toolbar = QToolBar("Main Toolbar")
+        main_toolbar.setStyleSheet("background-color: #777777;")
         self.addToolBar(main_toolbar)
     
     def setupShortcuts(self):
