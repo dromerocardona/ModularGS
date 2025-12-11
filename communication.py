@@ -8,7 +8,6 @@ import logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Communication:
-
     def __init__(self, serial_port, baud_rate=115200, timeout=4, csv_filename='data.csv'):
         self.sim_thread = None
         self.serial_port = serial_port
@@ -415,3 +414,60 @@ class Communication:
                 return self.data_list[-1][24]
             except (IndexError, ValueError):
                 return None
+    
+    ##### TESTING NEEDED #####
+
+    telemetryHeaders = ['TEAM_ID', 'MISSION_TIME', 'PACKET_COUNT', 'MODE', 'STATE',
+                        'ALTITUDE', 'TEMPERATURE', 'PRESSURE', 'VOLTAGE', 'GYRO_R',
+                        'GYRO_P', 'GYRO_Y', 'ACCEL_R', 'ACCEL_P', 'ACCEL_Y', 'MAG_R',
+                        'MAG_P', 'MAG_Y', 'AUTO_GYRO_ROTATION_RATE', 'GPS_TIME', 'GPS_ALTITUDE',
+                        'GPS_LATITUDE', 'GPS_LONGITUDE', 'GPS_SATS', 'CMD_ECHO', 'TEAM_NAME']
+
+    # should be converted to float when returned
+    numericFields = {
+        'ALTITUDE', 'TEMPERATURE', 'PRESSURE', 'VOLTAGE',
+        'GYRO_R', 'GYRO_P', 'GYRO_Y',
+        'ACCEL_R', 'ACCEL_P', 'ACCEL_Y',
+        'MAG_R', 'MAG_P', 'MAG_Y',
+        'AUTO_GYRO_ROTATION_RATE',
+        'GPS_LATITUDE', 'GPS_LONGITUDE', 'GPS_ALTITUDE'
+    }
+
+    def ensureFieldIndex(self):
+        # build a mapping from field name to index based on telemetryHeaders
+        if not hasattr(self, 'field_index') or self.field_index is None:
+            self.field_index = {name: idx for idx, name in enumerate(self.telemetryHeaders)}
+
+    def getField(self, field_name, default=None):
+        # Generic getter: return latest value for telemetry field_name.
+        # - Uses telemetryHeaders to map names to CSV columns.
+        # - Converts to float for known numeric fields.
+        # - Returns `default` on missing data or parse errors.
+        
+        self.ensureFieldIndex()
+        idx = self.field_index.get(field_name)
+        if idx is None:
+            return default
+        if not self.data_list:
+            return default
+        try:
+            val = self.data_list[-1][idx]
+            if field_name in self.numericFields:
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return default
+            return val
+        except (IndexError, ValueError, TypeError):
+            return default
+
+    def __getattr__(self, name):
+        #Backward-compatible dynamic getter: allow `get_<FIELD>()` calls.
+        #Example: `comm.get_ALTITUDE()` will call `getField('ALTITUDE')`.
+
+        if name.startswith('get_'):
+            field = name[4:]
+            self.ensureFieldIndex()
+            if field in self.field_index:
+                return lambda default=None: self.getField(field, default=default)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
