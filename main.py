@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout,
     QHBoxLayout, QPushButton, QComboBox, QGroupBox, QGridLayout, QSpacerItem,
-    QSizePolicy, QToolBar, QAction, QFileDialog)
+    QSizePolicy, QToolBar, QAction, QFileDialog, QInputDialog, QMessageBox)
 from PyQt5.QtGui import QIcon
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
@@ -10,6 +10,7 @@ from serial.tools import list_ports
 from typing import Iterable
 from map import GPSMap
 from data import Data
+import serial
 
 def get_available_serial_ports() -> Iterable[str]:
     return map(lambda c: c.device, list_ports.comports())
@@ -105,16 +106,105 @@ class GroundStation(QMainWindow):
 
         main_layout.addLayout(content_layout)
         main_layout.addWidget(self.footer_widget)
-        self.createToolbars()
+        self.createMenubar()
+    
+    def change_serial_port(self):
+        selected_port = self.serial_port_dropdown.currentText()
+        if selected_port != self.comm.serial_port:
+            self.comm.stop_communication()
+            self.comm.serial_port = selected_port
+            try:
+                self.comm.ser = serial.Serial(selected_port, self.comm.baud_rate, timeout=self.comm.timeout)
+                print(f"Serial port changed to {selected_port}")
+                if self.reading_data:
+                    self.comm.start_communication(self.signal_emitter)
+            except serial.SerialException as e:
+                print(f"Failed to open serial port {selected_port}: {e}")
+                self.comm.ser = None
+
+    def update_serial_ports(self):
+        current_port = self.serial_port_dropdown.currentText()
+        available_ports = set(get_available_serial_ports())
+        self.serial_port_dropdown.clear()
+        self.serial_port_dropdown.addItems(available_ports)
+        if current_port in available_ports:
+            self.serial_port_dropdown.setCurrentText(current_port)
+        else:
+            self.comm.stop_communication()
+            self.reading_data = False
+            self.start_stop_button.setText("CXON")
+        print("Serial ports updated.")
+
+    def change_baud_rate(self):
+        selected_baud_rate = int(self.baud_rate_dropdown.currentText())
+        self.comm.change_baud_rate(selected_baud_rate)
+        print(f"Baud rate changed to {selected_baud_rate}")
+
+    def change_serial_port_dialog(self):
+        """Open a dialog to let the user pick from available serial ports."""
+        ports = list(get_available_serial_ports())
+        if not ports:
+            QMessageBox.information(self, "No ports", "No serial ports found.")
+            return
+        port, valid = QInputDialog.getItem(self, "Select serial port", "Serial port:", ports, 0, False)
+        if valid and port:
+            if port != self.comm.serial_port:
+                self.comm.stop_communication()
+                self.comm.serial_port = port
+                try:
+                    self.comm.ser = serial.Serial(port, self.comm.baud_rate, timeout=self.comm.timeout)
+                    print(f"Serial port changed to {port}")
+                    if getattr(self, 'reading_data', False):
+                        self.comm.start_communication(self.signal_emitter)
+                except serial.SerialException as e:
+                    QMessageBox.warning(self, "Serial Error", f"Failed to open serial port {port}: {e}")
+                    self.comm.ser = None
+
+    def change_baud_rate_dialog(self):
+        """Open a dialog to let the user pick a baud rate."""
+        baudrates = ["110", "300", "600", "1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"]
+        current = str(self.comm.baud_rate) if hasattr(self, 'comm') else "115200"
+        if current in baudrates:
+            default_idx = baudrates.index(current)
+        else:
+            default_idx = 4
+        baud, valid = QInputDialog.getItem(self, "Select baud rate", "Baud rate:", baudrates, default_idx, False)
+        if valid and baud:
+            selected_baud_rate = int(baud)
+            self.comm.change_baud_rate(selected_baud_rate)
+            print(f"Baud rate changed to {selected_baud_rate}")
 
     # Close Ground Station
     def closeEvent(self, event):
         event.accept()
     
-    def createToolbars(self):
-        main_toolbar = QToolBar("Main Toolbar")
-        main_toolbar.setStyleSheet("background-color: #777777;")
-        self.addToolBar(main_toolbar)
+    def createMenubar(self):
+        menubar = self.menuBar()
+        menubar.setStyleSheet(
+            "QMenuBar { background-color: #777777; color: white; }"
+            "QMenuBar::item { background-color: transparent; color: white; }"
+            "QMenu { background-color: #777777; color: white; }"
+            "QMenu::item:selected { background-color: #555555; }"
+        )
+        file_menu = menubar.addMenu("&File")
+        edit_menu = menubar.addMenu("&Edit")
+
+        # File menu actions
+        exit_action = QAction("Exit", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # Edit menu actions
+        change_serial_action = QAction("Change Serial Port", self)
+        change_serial_action.setShortcut("Ctrl+P")
+        change_serial_action.triggered.connect(self.change_serial_port_dialog)
+        edit_menu.addAction(change_serial_action)
+
+        change_baud_action = QAction("Change Baud Rate", self)
+        change_baud_action.setShortcut("Ctrl+B")
+        change_baud_action.triggered.connect(self.change_baud_rate_dialog)
+        edit_menu.addAction(change_baud_action)
     
     def setupShortcuts(self):
         pass
