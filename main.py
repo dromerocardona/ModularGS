@@ -186,14 +186,19 @@ class GroundStation(QMainWindow):
             "QMenu { background-color: #777777; color: white; }"
             "QMenu::item:selected { background-color: #555555; }"
         )
-        file_menu = menubar.addMenu("&File")
+        window_menu = menubar.addMenu("&Window")
         edit_menu = menubar.addMenu("&Edit")
 
-        # File menu actions
+        # Window menu actions
+        fullscreen_action = QAction("Toggle Fullscreen", self)
+        fullscreen_action.setShortcut("F11")
+        fullscreen_action.triggered.connect(self.toggle_fullscreen)
+        window_menu.addAction(fullscreen_action)
+
         exit_action = QAction("Exit", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
+        window_menu.addAction(exit_action)
 
         # Edit menu actions
         change_serial_action = QAction("Change Serial Port", self)
@@ -208,6 +213,12 @@ class GroundStation(QMainWindow):
     
     def setupShortcuts(self):
         pass
+
+    def toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
 
 # Run the application
 if __name__ == "__main__":
