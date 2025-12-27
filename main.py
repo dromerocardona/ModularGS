@@ -210,9 +210,6 @@ class GroundStation(QMainWindow):
         change_baud_action.setShortcut("Ctrl+B")
         change_baud_action.triggered.connect(self.change_baud_rate_dialog)
         edit_menu.addAction(change_baud_action)
-    
-    def setupShortcuts(self):
-        pass
 
     def toggle_fullscreen(self):
         if self.isFullScreen():
