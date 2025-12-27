@@ -1,7 +1,8 @@
 import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout,
     QHBoxLayout, QPushButton, QComboBox, QGroupBox, QGridLayout, QSpacerItem,
-    QSizePolicy, QToolBar, QAction, QFileDialog, QInputDialog, QMessageBox)
+    QSizePolicy, QToolBar, QAction, QFileDialog, QInputDialog, QMessageBox,
+    QDialog, QListWidget, QAbstractItemView)
 from PyQt5.QtGui import QIcon
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
@@ -10,6 +11,7 @@ from serial.tools import list_ports
 from typing import Iterable
 from map import GPSMap
 from data import Data
+from graph import Graph, rpyGraph
 import serial
 
 def get_available_serial_ports() -> Iterable[str]:
@@ -28,7 +30,7 @@ class GroundStation(QMainWindow):
         super().__init__()
         self.setWindowTitle("GS")
         self.setGeometry(100, 100, 1200, 800)
-        self.setStyleSheet("background-color: #b0aee7;")
+        self.setStyleSheet("background-color: #070B57;")
         self.showMaximized()
         screen_geometry = QApplication.desktop().screenGeometry()
 
@@ -59,7 +61,7 @@ class GroundStation(QMainWindow):
         sidebar_layout.addItem(QSpacerItem(10, 10))
         sidebar_groupbox = QGroupBox("")
         sidebar_groupbox.setStyleSheet("background-color: #d1d1f0;")
-        sidebar_groupbox.setStyleSheet("QGroupBox { background-color: #d1d1f0; border: 1px solid black; }")
+        sidebar_groupbox.setStyleSheet("QGroupBox { background-color: #d1d1f0; }")
         sidebar_groupbox_layout = QVBoxLayout()
         sidebar_groupbox.setLayout(sidebar_groupbox_layout)
         buttons_grid = QGridLayout()
@@ -70,7 +72,7 @@ class GroundStation(QMainWindow):
         sidebar_layout.addWidget(buttons_widget)
         self.sidebar_widget = QWidget()
         self.sidebar_widget.setLayout(sidebar_layout)
-        self.sidebar_widget.setStyleSheet("background-color: #e9eeff;")
+        self.sidebar_widget.setStyleSheet("background-color: #8183A3;")
         sidebar_width = screen_geometry.width() // 5
         self.sidebar_widget.setFixedWidth(sidebar_width)
         # Ensure child elements handle overflow
@@ -84,7 +86,7 @@ class GroundStation(QMainWindow):
         footer_layout = QVBoxLayout()
         self.footer_widget = QWidget()
         self.footer_widget.setLayout(footer_layout)
-        self.footer_widget.setStyleSheet("background-color: #a7cbf5;")
+        self.footer_widget.setStyleSheet("background-color: #545780;")
         footer_height = screen_geometry.height() // 20
         self.footer_widget.setFixedHeight(footer_height)
 
@@ -93,13 +95,19 @@ class GroundStation(QMainWindow):
         self.graphs_widget = QWidget()
         graphs_layout = QVBoxLayout()
         self.graphs_widget.setLayout(graphs_layout)
+        # GPS map may be optional; keep reference on self
+        self.gps_map = None
         if (self.data.getPreference("GPS")):
             self.graphs_widget.setStyleSheet("background-color: #e6e6e6;")
-            map = GPSMap()
-            map.location_updated.connect(map.update_map)
-        graphs_layout.addWidget(map.win)
+            self.gps_map = GPSMap()
+            self.gps_map.location_updated.connect(self.gps_map.update_map)
+            graphs_layout.addWidget(self.gps_map.win)
+        
         graphs_grid = QGridLayout()
         graphs_layout.addLayout(graphs_grid)
+        self.graphs_grid = graphs_grid
+        self.graphs = {}  # name -> Graph instance
+        self._graph_grid_pos = 0
         content_layout.addWidget(self.graphs_widget)
         
         ### Main Content Layout ###
@@ -181,9 +189,9 @@ class GroundStation(QMainWindow):
     def createMenubar(self):
         menubar = self.menuBar()
         menubar.setStyleSheet(
-            "QMenuBar { background-color: #777777; color: white; }"
+            "QMenuBar { background-color: #545454; color: white; }"
             "QMenuBar::item { background-color: transparent; color: white; }"
-            "QMenu { background-color: #777777; color: white; }"
+            "QMenu { background-color: #545454; color: white; }"
             "QMenu::item:selected { background-color: #555555; }"
         )
         window_menu = menubar.addMenu("&Window")
@@ -210,12 +218,215 @@ class GroundStation(QMainWindow):
         change_baud_action.setShortcut("Ctrl+B")
         change_baud_action.triggered.connect(self.change_baud_rate_dialog)
         edit_menu.addAction(change_baud_action)
+        # Graphs menu
+        graphs_menu = menubar.addMenu("&Graphs")
+
+        create_graphs_action = QAction("Create Graph...", self)
+        create_graphs_action.setShortcut("Ctrl+G")
+        create_graphs_action.triggered.connect(self.open_graph_selector)
+        graphs_menu.addAction(create_graphs_action)
+
+        toggle_gps_action = QAction("Toggle GPS Map", self)
+        toggle_gps_action.setShortcut("Ctrl+M")
+        toggle_gps_action.setCheckable(True)
+        toggle_gps_action.setChecked(bool(self.gps_map))
+        toggle_gps_action.triggered.connect(self.toggle_gps_map)
+        graphs_menu.addAction(toggle_gps_action)
+        
+        remove_graphs_action = QAction("Remove Graph...", self)
+        remove_graphs_action.setShortcut("Ctrl+R")
+        remove_graphs_action.triggered.connect(self.open_remove_graph_dialog)
+        graphs_menu.addAction(remove_graphs_action)
+
+    def toggle_gps_map(self, checked: bool):
+        if checked and self.gps_map is None:
+            # create and add
+            self.gps_map = GPSMap()
+            self.gps_map.location_updated.connect(self.gps_map.update_map)
+            # insert at top of graphs layout
+            self.graphs_widget.layout().insertWidget(0, self.gps_map.win)
+            self.data.setPreference("GPS", True)
+        elif not checked and self.gps_map is not None:
+            try:
+                self.gps_map.win.hide()
+            except Exception:
+                pass
+            self.gps_map = None
+            self.data.setPreference("GPS", False)
+
+    def open_graph_selector(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select telemetry fields to graph")
+        layout = QVBoxLayout()
+
+        list_widget = QListWidget()
+        list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+        # Load telemetry fields via Data interface
+        try:
+            fields = self.data.getTelemetryFields() or {}
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to load telemetry fields: {e}")
+            return
+
+        for k in sorted(fields.keys()):
+            list_widget.addItem(k)
+
+        layout.addWidget(list_widget)
+
+        buttons_layout = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        cancel_btn = QPushButton("Cancel")
+        buttons_layout.addWidget(ok_btn)
+        buttons_layout.addWidget(cancel_btn)
+        layout.addLayout(buttons_layout)
+
+        def on_ok():
+            selected = [it.text() for it in list_widget.selectedItems()]
+            dialog.accept()
+            self.create_graphs_for_fields(selected, fields)
+
+        ok_btn.clicked.connect(on_ok)
+        cancel_btn.clicked.connect(dialog.reject)
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def open_remove_graph_dialog(self):
+        if not self.graphs:
+            QMessageBox.information(self, "No graphs", "There are no graphs to remove.")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Remove graphs")
+        layout = QVBoxLayout()
+
+        list_widget = QListWidget()
+        list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+        for name in sorted(self.graphs.keys()):
+            list_widget.addItem(name)
+
+        layout.addWidget(list_widget)
+
+        buttons_layout = QHBoxLayout()
+        ok_btn = QPushButton("Remove")
+        cancel_btn = QPushButton("Cancel")
+        buttons_layout.addWidget(ok_btn)
+        buttons_layout.addWidget(cancel_btn)
+        layout.addLayout(buttons_layout)
+
+        def on_remove():
+            selected = [it.text() for it in list_widget.selectedItems()]
+            dialog.accept()
+            for n in selected:
+                self.remove_graph(n)
+
+        ok_btn.clicked.connect(on_remove)
+        cancel_btn.clicked.connect(dialog.reject)
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def create_graphs_for_fields(self, selected_fields, fields_units):
+        # detect RPY groups (e.g., GYRO_R, GYRO_P, GYRO_Y)
+        selected = set(selected_fields)
+        used = set()
+        # simple grouping by prefix before last underscore
+        prefixes = {}
+        for name in list(selected):
+            if '_' in name:
+                prefix, suffix = name.rsplit('_', 1)
+                prefixes.setdefault(prefix, set()).add(suffix)
+
+        # create rpyGraph where R,P,Y all present
+        for prefix, sufset in prefixes.items():
+            if {'R', 'P', 'Y'}.issubset(sufset):
+                graph_name = prefix
+                if graph_name in self.graphs:
+                    used.update({f"{prefix}_R", f"{prefix}_P", f"{prefix}_Y"})
+                    continue
+                units = fields_units.get(prefix + '_R', '')
+                g = rpyGraph(graph_name, units)
+                container = self._create_graph_container(graph_name, g)
+                self.graphs[graph_name] = (g, container)
+                self._graph_grid_pos += 1
+                used.update({f"{prefix}_R", f"{prefix}_P", f"{prefix}_Y"})
+
+        # remaining individual fields
+        for name in selected_fields:
+            if name in used:
+                continue
+            # skip if a graph with this key (or same name) already exists
+            if name in self.graphs:
+                continue
+            units = fields_units.get(name, '')
+            g = Graph(name, units)
+            container = self._create_graph_container(name, g)
+            self.graphs[name] = (g, container)
+            self._graph_grid_pos += 1
+
+        # rebuild grid to place new containers
+        self._rebuild_graph_grid()
 
     def toggle_fullscreen(self):
         if self.isFullScreen():
             self.showNormal()
         else:
             self.showFullScreen()
+
+    def _create_graph_container(self, name: str, graph_obj):
+        """Create a container widget that holds only the graph widget."""
+        container = QWidget()
+        v = QVBoxLayout()
+        container.setLayout(v)
+
+        # add only the graph widget (no header)
+        v.addWidget(graph_obj.win)
+        return container
+
+    def remove_graph(self, name: str):
+        entry = self.graphs.get(name)
+        if not entry:
+            return
+        graph_obj, container = entry
+        try:
+            graph_obj.close()
+        except Exception:
+            pass
+        # remove container from grid layout
+        self._remove_widget_from_layout(container, self.graphs_grid)
+        # delete container
+        container.setParent(None)
+        # remove from dict
+        del self.graphs[name]
+        # rebuild grid to compact layout
+        self._rebuild_graph_grid()
+
+    def _remove_widget_from_layout(self, widget, layout):
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            if item is None:
+                continue
+            w = item.widget()
+            if w is widget:
+                # remove and delete
+                item.widget().setParent(None)
+                return
+
+    def _rebuild_graph_grid(self):
+        # clear all items from the grid
+        layout = self.graphs_grid
+        # remove widgets
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+
+        # re-add containers from self.graphs in insertion order
+        idx = 0
+        for name, (g, container) in list(self.graphs.items()):
+            row = idx // 2
+            col = idx % 2
+            layout.addWidget(container, row, col)
+            idx += 1
+        self._graph_grid_pos = idx
 
 # Run the application
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import time
 import threading
 import queue
 import logging
+from data import Data
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -25,6 +26,10 @@ class Communication:
         self.simEnabled = False
         self.simulation_state_callback = lambda state: None
 
+        # Load telemetry fields using Data interface
+        self.data_manager = Data()
+        self.loadTelemetryFields()
+
         try:
             self.ser = serial.Serial(self.serial_port, self.baud_rate, timeout=self.timeout)
             # Set a short write timeout to prevent blocking
@@ -36,11 +41,7 @@ class Communication:
         with open(self.csv_filename, mode='a', newline='') as file:
             writer = csv.writer(file)
             if not file.tell():
-                writer.writerow(['TEAM_ID', 'MISSION_TIME', 'PACKET_COUNT', 'MODE', 'STATE',
-                                 'ALTITUDE', 'TEMPERATURE', 'PRESSURE', 'VOLTAGE', 'GYRO_R',
-                                 'GYRO_P', 'GYRO_Y', 'ACCEL_R', 'ACCEL_P', 'ACCEL_Y', 'MAG_R',
-                                 'MAG_P', 'MAG_Y', 'AUTO_GYRO_ROTATION_RATE', 'GPS_TIME', 'GPS_ALTITUDE',
-                                 'GPS_LATITUDE', 'GPS_LONGITUDE', 'GPS_SATS', 'CMD_ECHO', 'TEAM_NAME'])
+                writer.writerow(self.telemetryHeaders)
 
     def start_communication(self, signal_emitter):
         if self.ser is None:
@@ -213,29 +214,30 @@ class Communication:
     def reset_csv(self):
         with open(self.csv_filename, mode='w', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow(['TEAM_ID', 'MISSION_TIME', 'PACKET_COUNT', 'MODE', 'STATE',
-                             'ALTITUDE', 'TEMPERATURE', 'PRESSURE', 'VOLTAGE', 'GYRO_R',
-                             'GYRO_P', 'GYRO_Y', 'ACCEL_R', 'ACCEL_P', 'ACCEL_Y', 'MAG_R',
-                             'MAG_P', 'MAG_Y', 'AUTO_GYRO_ROTATION_RATE', 'GPS_TIME', 'GPS_ALTITUDE',
-                             'GPS_LATITUDE', 'GPS_LONGITUDE', 'GPS_SATS', 'CMD_ECHO', 'TEAM_NAME'])
+            writer.writerow(self.telemetryHeaders)
     
     ## Telemetry field accessors ##
 
-    telemetryHeaders = ['TEAM_ID', 'MISSION_TIME', 'PACKET_COUNT', 'MODE', 'STATE',
-                        'ALTITUDE', 'TEMPERATURE', 'PRESSURE', 'VOLTAGE', 'GYRO_R',
-                        'GYRO_P', 'GYRO_Y', 'ACCEL_R', 'ACCEL_P', 'ACCEL_Y', 'MAG_R',
-                        'MAG_P', 'MAG_Y', 'AUTO_GYRO_ROTATION_RATE', 'GPS_TIME', 'GPS_ALTITUDE',
-                        'GPS_LATITUDE', 'GPS_LONGITUDE', 'GPS_SATS', 'CMD_ECHO', 'TEAM_NAME']
-
-    # should be converted to float when returned
-    numericFields = {
-        'ALTITUDE', 'TEMPERATURE', 'PRESSURE', 'VOLTAGE',
-        'GYRO_R', 'GYRO_P', 'GYRO_Y',
-        'ACCEL_R', 'ACCEL_P', 'ACCEL_Y',
-        'MAG_R', 'MAG_P', 'MAG_Y',
-        'AUTO_GYRO_ROTATION_RATE',
-        'GPS_LATITUDE', 'GPS_LONGITUDE', 'GPS_ALTITUDE'
-    }
+    def loadTelemetryFields(self):
+        """Load telemetry headers and numeric fields from Data interface."""
+        try:
+            telemetry_data = self.data_manager.getTelemetryFields()
+            
+            # telemetryHeaders are the keys from the telemetry fields (in order)
+            self.telemetryHeaders = list(telemetry_data.keys())
+            
+            # numericFields are fields with non-empty unit values
+            self.numericFields = {
+                field for field, unit in telemetry_data.items() if unit
+            }
+            
+            logging.info(f"Loaded {len(self.telemetryHeaders)} telemetry headers from Data manager")
+            logging.debug(f"Numeric fields: {self.numericFields}")
+        except Exception as e:
+            logging.error(f"Error loading telemetry fields: {e}")
+            # Fallback to empty lists
+            self.telemetryHeaders = []
+            self.numericFields = set()
 
     def ensureFieldIndex(self):
         # build a mapping from field name to index based on telemetryHeaders
