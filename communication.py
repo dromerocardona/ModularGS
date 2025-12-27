@@ -5,11 +5,15 @@ import threading
 import queue
 import logging
 from data import Data
+from PyQt5.QtCore import QObject, pyqtSignal
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-class Communication:
+class Communication(QObject):
+    telemetry_received = pyqtSignal(dict)
+
     def __init__(self, serial_port, baud_rate=115200, timeout=4, csv_filename='data.csv'):
+        QObject.__init__(self)
         self.sim_thread = None
         self.serial_port = serial_port
         self.baud_rate = baud_rate
@@ -63,8 +67,13 @@ class Communication:
                     self.lastPacket = line
                     if line:
                         self.receivedPacketCount += 1
-                        self.parse_csv_data(line)
-                        signal_emitter.emit_signal()
+                        packet = self.parse_csv_data(line)
+                        # emit structured telemetry dict for GUI routing
+                        try:
+                            if packet is not None:
+                                self.telemetry_received.emit(packet)
+                        except Exception:
+                            pass
                         writer.writerow(line.split(','))
                 except serial.SerialException as e:
                     print(f"Serial error: {e}")
@@ -207,6 +216,28 @@ class Communication:
         csv_data = data.split(',')
         self.data_list.append(csv_data)
         self.data_list = self.data_list[-20:]
+
+        # Map telemetryHeaders to the values in this line
+        try:
+            result = {}
+            for idx, name in enumerate(self.telemetryHeaders):
+                try:
+                    val = csv_data[idx]
+                except IndexError:
+                    val = None
+                if val is None:
+                    result[name] = None
+                else:
+                    if name in self.numericFields:
+                        try:
+                            result[name] = float(val)
+                        except Exception:
+                            result[name] = None
+                    else:
+                        result[name] = val
+            return result
+        except Exception:
+            return None
 
     def get_data(self):
         return self.data_list

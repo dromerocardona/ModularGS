@@ -36,6 +36,11 @@ class GroundStation(QMainWindow):
 
         self.data = Data() # Get preferences and other data
         self.comm = Communication(self.data.getPreference("port")) # Initialize communication
+        # connect Communication's telemetry dict signal to handler
+        try:
+            self.comm.telemetry_received.connect(self.handle_telemetry)
+        except Exception:
+            pass
 
         self.central_widget = QWidget(self)
         self.setCentralWidget(self.central_widget)
@@ -377,6 +382,50 @@ class GroundStation(QMainWindow):
 
         # rebuild grid to place new containers
         self._rebuild_graph_grid()
+
+    def handle_telemetry(self, packet: dict):
+        """Route a parsed telemetry `packet` (dict) into graphs and map."""
+        if not isinstance(packet, dict):
+            return
+
+        # GPS
+        try:
+            lat = packet.get('GPS_LATITUDE')
+            lon = packet.get('GPS_LONGITUDE')
+            if lat is not None and lon is not None and self.gps_map:
+                try:
+                    self.gps_map.location_updated.emit(float(lat), float(lon))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Route values to individual graphs or grouped RPY graphs
+        for key, (gobj, container) in list(self.graphs.items()):
+            try:
+                if isinstance(gobj, rpyGraph):
+                    r = packet.get(f"{key}_R")
+                    p = packet.get(f"{key}_P")
+                    y = packet.get(f"{key}_Y")
+                    if r is None and p is None and y is None:
+                        continue
+                    try:
+                        rr = float(r) if r is not None else 0.0
+                        pp = float(p) if p is not None else 0.0
+                        yy = float(y) if y is not None else 0.0
+                        gobj.update(rr, pp, yy)
+                    except Exception:
+                        pass
+                else:
+                    val = packet.get(key)
+                    if val is None:
+                        continue
+                    try:
+                        gobj.update(float(val))
+                    except Exception:
+                        pass
+            except Exception:
+                continue
 
     def toggle_fullscreen(self):
         if self.isFullScreen():
