@@ -102,17 +102,41 @@ class GroundStation(QMainWindow):
         self.graphs_widget.setLayout(graphs_layout)
         # GPS map may be optional; keep reference on self
         self.gps_map = None
+
+        graphs_grid = QGridLayout()
+        graphs_grid.setSpacing(2)
+        graphs_grid.setContentsMargins(0, 0, 0, 0)
+        graphs_layout.addLayout(graphs_grid)
+        self.graphs_layout = graphs_layout
+        self.graphs_layout.setSpacing(0)
+        self.graphs_layout.setContentsMargins(0, 0, 0, 0)
+        self.graphs_grid = graphs_grid
+        self.graphs = {}  # name -> (graph_obj, container)
+        self._graph_grid_pos = 0
+
+        # If GPS preference enabled, create map and add its container into the grid
         if (self.data.getPreference("GPS")):
             self.graphs_widget.setStyleSheet("background-color: #e6e6e6;")
             self.gps_map = GPSMap()
             self.gps_map.location_updated.connect(self.gps_map.update_map)
-            graphs_layout.addWidget(self.gps_map.win)
-        
-        graphs_grid = QGridLayout()
-        graphs_layout.addLayout(graphs_grid)
-        self.graphs_grid = graphs_grid
-        self.graphs = {}  # name -> Graph instance
-        self._graph_grid_pos = 0
+            gps_container = QWidget()
+            gps_layout = QVBoxLayout()
+            gps_layout.setSpacing(0)
+            gps_layout.setContentsMargins(0, 0, 0, 0)
+            gps_container.setLayout(gps_layout)
+            gps_layout.addWidget(self.gps_map.win)
+            gps_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            # store GPS as special entry so it will be laid out with equal spacing
+            self.graphs['__GPS_MAP__'] = (None, gps_container)
+            self._graph_grid_pos += 1
+            try:
+                self._rebuild_graph_grid()
+                try:
+                    self.gps_map.win.show()
+                except Exception:
+                    pass
+            except Exception:
+                pass
         content_layout.addWidget(self.graphs_widget)
         
         ### Main Content Layout ###
@@ -130,7 +154,7 @@ class GroundStation(QMainWindow):
                 self.comm.ser = serial.Serial(selected_port, self.comm.baud_rate, timeout=self.comm.timeout)
                 print(f"Serial port changed to {selected_port}")
                 if self.reading_data:
-                    self.comm.start_communication(self.signal_emitter)
+                    self.comm.start_communication(None)
             except serial.SerialException as e:
                 print(f"Failed to open serial port {selected_port}: {e}")
                 self.comm.ser = None
@@ -168,7 +192,7 @@ class GroundStation(QMainWindow):
                     self.comm.ser = serial.Serial(port, self.comm.baud_rate, timeout=self.comm.timeout)
                     print(f"Serial port changed to {port}")
                     if getattr(self, 'reading_data', False):
-                        self.comm.start_communication(self.signal_emitter)
+                        self.comm.start_communication(None)
                 except serial.SerialException as e:
                     QMessageBox.warning(self, "Serial Error", f"Failed to open serial port {port}: {e}")
                     self.comm.ser = None
@@ -245,13 +269,30 @@ class GroundStation(QMainWindow):
 
     def toggle_gps_map(self, checked: bool):
         if checked and self.gps_map is None:
-            # create and add
+            # create and add GPS map container into grid
             self.gps_map = GPSMap()
             self.gps_map.location_updated.connect(self.gps_map.update_map)
-            # insert at top of graphs layout
-            self.graphs_widget.layout().insertWidget(0, self.gps_map.win)
+            gps_container = QWidget()
+            gps_layout = QVBoxLayout()
+            gps_layout.setSpacing(0)
+            gps_layout.setContentsMargins(0, 0, 0, 0)
+            gps_container.setLayout(gps_layout)
+            gps_layout.addWidget(self.gps_map.win)
+            gps_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.graphs['__GPS_MAP__'] = (None, gps_container)
+            self._rebuild_graph_grid()
             self.data.setPreference("GPS", True)
         elif not checked and self.gps_map is not None:
+            # remove GPS map from grid and dict
+            try:
+                if '__GPS_MAP__' in self.graphs:
+                    _, container = self.graphs['__GPS_MAP__']
+                    self._remove_widget_from_layout(container, self.graphs_grid)
+                    container.setParent(None)
+                    del self.graphs['__GPS_MAP__']
+                    self._rebuild_graph_grid()
+            except Exception:
+                pass
             try:
                 self.gps_map.win.hide()
             except Exception:
@@ -437,7 +478,16 @@ class GroundStation(QMainWindow):
         """Create a container widget that holds only the graph widget."""
         container = QWidget()
         v = QVBoxLayout()
+        v.setSpacing(0)
+        v.setContentsMargins(0, 0, 0, 0)
         container.setLayout(v)
+
+        # ensure graph widget and container expand to fill grid cell
+        try:
+            graph_obj.win.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        except Exception:
+            pass
 
         # add only the graph widget (no header)
         v.addWidget(graph_obj.win)
@@ -484,9 +534,23 @@ class GroundStation(QMainWindow):
 
         # re-add containers from self.graphs in insertion order
         idx = 0
+        total = len(self.graphs)
+        cols = 2
+        rows = (total + cols - 1) // cols if total > 0 else 0
+
+        # set equal stretch for rows and columns
+        for c in range(cols):
+            layout.setColumnStretch(c, 1)
+        for r in range(rows):
+            layout.setRowStretch(r, 1)
+
         for name, (g, container) in list(self.graphs.items()):
-            row = idx // 2
-            col = idx % 2
+            row = idx // cols
+            col = idx % cols
+            try:
+                container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            except Exception:
+                pass
             layout.addWidget(container, row, col)
             idx += 1
         self._graph_grid_pos = idx
