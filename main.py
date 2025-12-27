@@ -257,10 +257,13 @@ class GroundStation(QMainWindow):
     def open_graph_selector(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Select telemetry fields to graph")
+        # Dark dialog styling
+        dialog.setStyleSheet("background-color: #2e2e2e; color: white;")
         layout = QVBoxLayout()
 
         list_widget = QListWidget()
         list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+        list_widget.setStyleSheet("background-color: #3a3a3a; color: white; selection-background-color: #505050;")
         # Load telemetry fields via Data interface
         try:
             fields = self.data.getTelemetryFields() or {}
@@ -276,6 +279,8 @@ class GroundStation(QMainWindow):
         buttons_layout = QHBoxLayout()
         ok_btn = QPushButton("OK")
         cancel_btn = QPushButton("Cancel")
+        ok_btn.setStyleSheet("background-color:#505050; color:white; padding:6px;")
+        cancel_btn.setStyleSheet("background-color:#505050; color:white; padding:6px;")
         buttons_layout.addWidget(ok_btn)
         buttons_layout.addWidget(cancel_btn)
         layout.addLayout(buttons_layout)
@@ -292,14 +297,21 @@ class GroundStation(QMainWindow):
 
     def open_remove_graph_dialog(self):
         if not self.graphs:
-            QMessageBox.information(self, "No graphs", "There are no graphs to remove.")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Information)
+            msg.setWindowTitle("No graphs")
+            msg.setText("There are no graphs to remove.")
+            msg.setStyleSheet("background-color: #2e2e2e; color: white;")
+            msg.exec_()
             return
         dialog = QDialog(self)
         dialog.setWindowTitle("Remove graphs")
+        dialog.setStyleSheet("background-color: #2e2e2e; color: white;")
         layout = QVBoxLayout()
 
         list_widget = QListWidget()
         list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+        list_widget.setStyleSheet("background-color: #3a3a3a; color: white; selection-background-color: #505050;")
         for name in sorted(self.graphs.keys()):
             list_widget.addItem(name)
 
@@ -308,6 +320,8 @@ class GroundStation(QMainWindow):
         buttons_layout = QHBoxLayout()
         ok_btn = QPushButton("Remove")
         cancel_btn = QPushButton("Cancel")
+        ok_btn.setStyleSheet("background-color:#505050; color:white; padding:6px;")
+        cancel_btn.setStyleSheet("background-color:#505050; color:white; padding:6px;")
         buttons_layout.addWidget(ok_btn)
         buttons_layout.addWidget(cancel_btn)
         layout.addLayout(buttons_layout)
