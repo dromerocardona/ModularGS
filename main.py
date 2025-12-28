@@ -54,6 +54,14 @@ class GroundStation(QMainWindow):
         header_height = screen_geometry.height() // 15
         header_widget.setFixedHeight(header_height)
         header_widget.setStyleSheet("background-color: #545454;")
+
+        header_text = QLabel("SHC GROUND STATION")
+        header_text.setAlignment(Qt.AlignCenter)
+        header_text.setFont(QFont("Arial", 15, QFont.Bold))
+        header_text.setStyleSheet("color: white;")
+
+        header_layout.addWidget(header_text)
+
         main_layout.addWidget(header_widget)
 
         content_layout = QHBoxLayout()
@@ -591,6 +599,19 @@ class GroundStation(QMainWindow):
         else:
             self.showFullScreen()
 
+    def reset_csv_action(self):
+        """Reset the CSV file by clearing all data and writing headers only."""
+        self.comm.reset_csv()
+        print("CSV file has been reset.")
+
+    def download_csv_action(self):
+        """Open a file dialog and save the CSV file to the selected location."""
+        destination_folder = QFileDialog.getExistingDirectory(self, "Select Destination Folder")
+        if self.comm.copy_csv(destination_folder):
+            print(f"CSV file has been downloaded to {destination_folder}")
+        else:
+            print("Failed to download CSV file.")
+
     def load_command_buttons(self):
         """Load commands from commands.json and create buttons in the sidebar."""
         # load commands via Data interface
@@ -608,6 +629,25 @@ class GroundStation(QMainWindow):
         # create buttons in a 3-column grid
         cols = 3
         idx = 0
+        
+        # Add default buttons
+        default_buttons = {
+            "Reset CSV": self.reset_csv_action,
+            "Download CSV": self.download_csv_action
+        }
+        
+        for name, action in default_buttons.items():
+            btn = QPushButton(name)
+            btn.setStyleSheet('background-color:#505050; color:white; padding:6px;')
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            btn.clicked.connect(action)
+            row = idx // cols
+            col = idx % cols
+            grid.addWidget(btn, row, col)
+            grid.setColumnStretch(col, 1)
+            self.command_buttons[name] = btn
+            idx += 1
+        
         for name, cmd in commands.items():
             btn = QPushButton(name)
             btn.setStyleSheet('background-color:#505050; color:white; padding:6px;')

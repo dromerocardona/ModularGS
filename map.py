@@ -62,8 +62,8 @@ class GPSMap(QWidget, QObject):
     def create_initial_map(self):
         try:
             # Default startup coords (can be changed later via location_updated)
-            initial_latitude = 38.3780916
-            initial_longitude = -79.6119949
+            initial_latitude = 34.7295
+            initial_longitude = -86.5853
 
             html = f"""
             <!DOCTYPE html>

@@ -4,5 +4,6 @@
     "port": "COM4",
     "baudrate": 112500,
     "GPS": true,
-    "Voice": false
+    "Voice": false,
+    "SimulationMode": false
 }

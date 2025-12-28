@@ -4,6 +4,7 @@ import time
 import threading
 import queue
 import logging
+import shutil
 from data import Data
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -63,7 +64,7 @@ class Communication(QObject):
             writer = csv.writer(file)
             while self.reading:
                 try:
-                    line = self.ser.read_until(b'COSMOS').decode('utf-8').strip()
+                    line = self.ser.read_until(b'SHC').decode('utf-8').strip()
                     self.lastPacket = line
                     if line:
                         self.receivedPacketCount += 1
@@ -138,6 +139,21 @@ class Communication(QObject):
         """Flush and close the CSV file temporarily to ensure all data is written."""
         with open(self.csv_filename, mode='a', newline='') as file:
             pass
+
+    def copy_csv(self, destination_folder):
+        """Copy the CSV file to the specified destination folder."""
+        if not destination_folder:
+            return False
+        try:
+            destination_file = f"{destination_folder}/{self.csv_filename}"
+            self.flush_csv()  # Ensure all data is flushed before copying
+            shutil.copy(self.csv_filename, destination_file)
+            logging.info(f"File copied to {destination_file}")
+            return True
+        except Exception as e:
+            logging.error(f"Error copying file: {e}")
+            return False
+            return False
 
     def stop_communication(self):
         self.reading = False

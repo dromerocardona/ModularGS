@@ -11,11 +11,11 @@
             <div id="map"></div>
             <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
             <script>
-                var map = L.map('map').setView([38.3780916, -79.6119949], 17);
+                var map = L.map('map').setView([34.7295, -86.5853], 17);
                 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
                 // Create a single marker that we'll move later
-                var marker = L.marker([38.3780916, -79.6119949]).addTo(map);
+                var marker = L.marker([34.7295, -86.5853]).addTo(map);
 
                 // Exposed function for Python to call via runJavaScript
                 function updateMarker(lat, lon) {
