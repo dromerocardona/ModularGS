@@ -1,8 +1,6 @@
 {
     "title": "Ground Station",
     "theme": "light",
-    "fields": [],
-    "graphs": {},
     "port": "COM4",
     "baudrate": 112500,
     "commands": [],
