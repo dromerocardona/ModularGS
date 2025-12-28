@@ -535,8 +535,16 @@ class GroundStation(QMainWindow):
         # re-add containers from self.graphs in insertion order
         idx = 0
         total = len(self.graphs)
-        cols = 2
+        
+        # Dynamic column layout: 1 item = 1 col (full width), 2+ items = 2 cols
+        cols = 1 if total == 1 else 2
         rows = (total + cols - 1) // cols if total > 0 else 0
+
+        # clear old column/row stretches first
+        for c in range(10):
+            layout.setColumnStretch(c, 0)
+        for r in range(10):
+            layout.setRowStretch(r, 0)
 
         # set equal stretch for rows and columns
         for c in range(cols):
