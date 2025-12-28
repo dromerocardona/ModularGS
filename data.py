@@ -68,3 +68,23 @@ class Data:
     def saveTelemetryFields(self):
         with open('telemetryFields.json', 'w') as file:
             json.dump(self.telemetryFields, file, indent=4)
+
+    def getCommands(self):
+        """Return the commands mapping.
+        Returns a dict mapping button label -> command string.
+        """
+        # If we already loaded commands, return cached
+        if hasattr(self, 'commands') and self.commands:
+            return self.commands
+
+        commands = {}
+        try:
+            with open('commands.json', 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    commands.update(loaded)
+        except Exception:
+            pass
+
+        self.commands = commands
+        return commands

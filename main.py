@@ -75,6 +75,8 @@ class GroundStation(QMainWindow):
         buttons_widget = QWidget()
         buttons_widget.setLayout(buttons_grid)
         sidebar_layout.addWidget(buttons_widget)
+        # store a reference to the buttons grid for command buttons
+        self.buttons_grid = buttons_grid
         self.sidebar_widget = QWidget()
         self.sidebar_widget.setLayout(sidebar_layout)
         self.sidebar_widget.setStyleSheet("background-color: #8183A3;")
@@ -85,6 +87,13 @@ class GroundStation(QMainWindow):
             label.setWordWrap(True)
             label.setStyleSheet("color: black; font-weight: bold; overflow: hidden; text-overflow: ellipsis;")
         content_layout.addWidget(self.sidebar_widget)
+
+        # load command buttons into the sidebar
+        self.command_buttons = {}
+        try:
+            self._load_command_buttons()
+        except Exception:
+            pass
 
         ### Footer Layout ###
 
@@ -247,25 +256,26 @@ class GroundStation(QMainWindow):
         change_baud_action.setShortcut("Ctrl+B")
         change_baud_action.triggered.connect(self.change_baud_rate_dialog)
         edit_menu.addAction(change_baud_action)
-        # Graphs menu
-        graphs_menu = menubar.addMenu("&Graphs")
+
+        # View menu
+        view_menu = menubar.addMenu("&View")
 
         create_graphs_action = QAction("Create Graph...", self)
         create_graphs_action.setShortcut("Ctrl+G")
         create_graphs_action.triggered.connect(self.open_graph_selector)
-        graphs_menu.addAction(create_graphs_action)
+        view_menu.addAction(create_graphs_action)
 
         toggle_gps_action = QAction("Toggle GPS Map", self)
         toggle_gps_action.setShortcut("Ctrl+M")
         toggle_gps_action.setCheckable(True)
         toggle_gps_action.setChecked(bool(self.gps_map))
         toggle_gps_action.triggered.connect(self.toggle_gps_map)
-        graphs_menu.addAction(toggle_gps_action)
+        view_menu.addAction(toggle_gps_action)
         
         remove_graphs_action = QAction("Remove Graph...", self)
         remove_graphs_action.setShortcut("Ctrl+R")
         remove_graphs_action.triggered.connect(self.open_remove_graph_dialog)
-        graphs_menu.addAction(remove_graphs_action)
+        view_menu.addAction(remove_graphs_action)
 
     def toggle_gps_map(self, checked: bool):
         if checked and self.gps_map is None:
@@ -473,6 +483,38 @@ class GroundStation(QMainWindow):
             self.showNormal()
         else:
             self.showFullScreen()
+
+    def _load_command_buttons(self):
+        """Load commands from commands.json and create buttons in the sidebar."""
+        # load commands via Data interface
+        commands = self.data.getCommands() or {}
+
+        # clear any existing buttons in the grid
+        grid = self.buttons_grid
+        # remove old widgets
+        while grid.count():
+            item = grid.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+
+        # create buttons in a 3-column grid
+        cols = 3
+        idx = 0
+        for name, cmd in commands.items():
+            btn = QPushButton(name)
+            btn.setStyleSheet('background-color:#505050; color:white; padding:6px;')
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            def make_send(c):
+                return lambda: self.comm.send_command(c)
+            btn.clicked.connect(make_send(cmd))
+            row = idx // cols
+            col = idx % cols
+            grid.addWidget(btn, row, col)
+            # set column stretch so buttons expand evenly
+            grid.setColumnStretch(col, 1)
+            self.command_buttons[name] = btn
+            idx += 1
 
     def _create_graph_container(self, name: str, graph_obj):
         """Create a container widget that holds only the graph widget."""
