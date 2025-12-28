@@ -91,7 +91,7 @@ class GroundStation(QMainWindow):
         # load command buttons into the sidebar
         self.command_buttons = {}
         try:
-            self._load_command_buttons()
+            self.load_command_buttons()
         except Exception:
             pass
 
@@ -139,7 +139,7 @@ class GroundStation(QMainWindow):
             self.graphs['__GPS_MAP__'] = (None, gps_container)
             self._graph_grid_pos += 1
             try:
-                self._rebuild_graph_grid()
+                self.rebuild_graph_grid()
                 try:
                     self.gps_map.win.show()
                 except Exception:
@@ -260,10 +260,10 @@ class GroundStation(QMainWindow):
         # View menu
         view_menu = menubar.addMenu("&View")
 
-        create_graphs_action = QAction("Create Graph...", self)
-        create_graphs_action.setShortcut("Ctrl+G")
-        create_graphs_action.triggered.connect(self.open_graph_selector)
-        view_menu.addAction(create_graphs_action)
+        manage_graphs_action = QAction("Manage Graphs...", self)
+        manage_graphs_action.setShortcut("Ctrl+G")
+        manage_graphs_action.triggered.connect(self.open_manage_graphs_dialog)
+        view_menu.addAction(manage_graphs_action)
 
         toggle_gps_action = QAction("Toggle GPS Map", self)
         toggle_gps_action.setShortcut("Ctrl+M")
@@ -272,10 +272,7 @@ class GroundStation(QMainWindow):
         toggle_gps_action.triggered.connect(self.toggle_gps_map)
         view_menu.addAction(toggle_gps_action)
         
-        remove_graphs_action = QAction("Remove Graph...", self)
-        remove_graphs_action.setShortcut("Ctrl+R")
-        remove_graphs_action.triggered.connect(self.open_remove_graph_dialog)
-        view_menu.addAction(remove_graphs_action)
+        # previously separate create/remove actions; merged into Manage Graphs
 
     def toggle_gps_map(self, checked: bool):
         if checked and self.gps_map is None:
@@ -290,17 +287,17 @@ class GroundStation(QMainWindow):
             gps_layout.addWidget(self.gps_map.win)
             gps_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             self.graphs['__GPS_MAP__'] = (None, gps_container)
-            self._rebuild_graph_grid()
+            self.rebuild_graph_grid()
             self.data.setPreference("GPS", True)
         elif not checked and self.gps_map is not None:
             # remove GPS map from grid and dict
             try:
                 if '__GPS_MAP__' in self.graphs:
                     _, container = self.graphs['__GPS_MAP__']
-                    self._remove_widget_from_layout(container, self.graphs_grid)
+                    self.remove_widget_from_layout(container, self.graphs_grid)
                     container.setParent(None)
                     del self.graphs['__GPS_MAP__']
-                    self._rebuild_graph_grid()
+                    self.rebuild_graph_grid()
             except Exception:
                 pass
             try:
@@ -323,11 +320,13 @@ class GroundStation(QMainWindow):
         # Load telemetry fields via Data interface
         try:
             fields = self.data.getTelemetryFields() or {}
+            # Only allow numeric fields (those with non-empty units)
+            numeric_field_keys = [k for k, u in fields.items() if u]
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to load telemetry fields: {e}")
             return
 
-        for k in sorted(fields.keys()):
+        for k in sorted(numeric_field_keys):
             list_widget.addItem(k)
 
         layout.addWidget(list_widget)
@@ -393,9 +392,110 @@ class GroundStation(QMainWindow):
         dialog.setLayout(layout)
         dialog.exec_()
 
+    def open_manage_graphs_dialog(self):
+        """Merged create/remove dialog: checkbox list of telemetry fields."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Manage telemetry graphs")
+        dialog.setStyleSheet("background-color: #2e2e2e; color: white;")
+        layout = QVBoxLayout()
+
+        list_widget = QListWidget()
+        list_widget.setStyleSheet("background-color: #3a3a3a; color: white; selection-background-color: #505050;")
+
+        try:
+            fields = self.data.getTelemetryFields() or {}
+            numeric_field_keys = [k for k, u in fields.items() if u]
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to load telemetry fields: {e}")
+            return
+
+        # build a set representing currently selected field-names (expanding R/P/Y groups)
+        current_selected = set()
+        for gname, (gobj, _) in list(self.graphs.items()):
+            if gname == '__GPS_MAP__':
+                continue
+            if isinstance(gobj, rpyGraph):
+                current_selected.update({f"{gname}_R", f"{gname}_P", f"{gname}_Y"})
+            else:
+                current_selected.add(gname)
+
+        # populate list with checkable items
+        for k in sorted(numeric_field_keys):
+            # create standard QListWidgetItem via addItem then fetch
+            list_widget.addItem(k)
+            it = list_widget.item(list_widget.count() - 1)
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+            it.setCheckState(Qt.Checked if k in current_selected else Qt.Unchecked)
+
+        layout.addWidget(list_widget)
+
+        buttons_layout = QHBoxLayout()
+        ok_btn = QPushButton("Apply")
+        cancel_btn = QPushButton("Cancel")
+        ok_btn.setStyleSheet("background-color:#505050; color:white; padding:6px;")
+        cancel_btn.setStyleSheet("background-color:#505050; color:white; padding:6px;")
+        buttons_layout.addWidget(ok_btn)
+        buttons_layout.addWidget(cancel_btn)
+        layout.addLayout(buttons_layout)
+
+        def on_apply():
+            # determine checked set
+            checked = set()
+            for i in range(list_widget.count()):
+                it = list_widget.item(i)
+                if it.checkState() == Qt.Checked:
+                    checked.add(it.text())
+
+            # compute current_selected again (fresh)
+            current_selected_now = set()
+            for gname, (gobj, _) in list(self.graphs.items()):
+                if gname == '__GPS_MAP__':
+                    continue
+                if isinstance(gobj, rpyGraph):
+                    current_selected_now.update({f"{gname}_R", f"{gname}_P", f"{gname}_Y"})
+                else:
+                    current_selected_now.add(gname)
+
+            to_remove_fields = current_selected_now - checked
+            to_create = checked - current_selected_now
+
+            # translate to concrete graph names to remove
+            remove_names = set()
+            for f in to_remove_fields:
+                if '_' in f:
+                    prefix, suf = f.rsplit('_', 1)
+                    if prefix in self.graphs and isinstance(self.graphs[prefix][0], rpyGraph):
+                        remove_names.add(prefix)
+                        continue
+                if f in self.graphs:
+                    remove_names.add(f)
+
+            # perform removals first
+            for name in list(remove_names):
+                try:
+                    self.remove_graph(name)
+                except Exception:
+                    pass
+
+            # create new graphs for remaining checked fields
+            if to_create:
+                try:
+                    self.create_graphs_for_fields(list(to_create), fields)
+                except Exception:
+                    pass
+
+            dialog.accept()
+
+        ok_btn.clicked.connect(on_apply)
+        cancel_btn.clicked.connect(dialog.reject)
+        dialog.setLayout(layout)
+        dialog.exec_()
+
     def create_graphs_for_fields(self, selected_fields, fields_units):
+        # Only consider numeric fields (those with units)
+        numeric_keys = {k for k, u in (fields_units or {}).items() if u}
+        selected = set(f for f in selected_fields if f in numeric_keys)
         # detect RPY groups (e.g., GYRO_R, GYRO_P, GYRO_Y)
-        selected = set(selected_fields)
         used = set()
         # simple grouping by prefix before last underscore
         prefixes = {}
@@ -407,13 +507,18 @@ class GroundStation(QMainWindow):
         # create rpyGraph where R,P,Y all present
         for prefix, sufset in prefixes.items():
             if {'R', 'P', 'Y'}.issubset(sufset):
+                # ensure the components are numeric
+                if not (f"{prefix}_R" in numeric_keys and f"{prefix}_P" in numeric_keys and f"{prefix}_Y" in numeric_keys):
+                    continue
                 graph_name = prefix
                 if graph_name in self.graphs:
                     used.update({f"{prefix}_R", f"{prefix}_P", f"{prefix}_Y"})
                     continue
                 units = fields_units.get(prefix + '_R', '')
+                if not units:
+                    continue
                 g = rpyGraph(graph_name, units)
-                container = self._create_graph_container(graph_name, g)
+                container = self.create_graph_container(graph_name, g)
                 self.graphs[graph_name] = (g, container)
                 self._graph_grid_pos += 1
                 used.update({f"{prefix}_R", f"{prefix}_P", f"{prefix}_Y"})
@@ -426,13 +531,15 @@ class GroundStation(QMainWindow):
             if name in self.graphs:
                 continue
             units = fields_units.get(name, '')
+            if not units:
+                continue
             g = Graph(name, units)
-            container = self._create_graph_container(name, g)
+            container = self.create_graph_container(name, g)
             self.graphs[name] = (g, container)
             self._graph_grid_pos += 1
 
         # rebuild grid to place new containers
-        self._rebuild_graph_grid()
+        self.rebuild_graph_grid()
 
     def handle_telemetry(self, packet: dict):
         """Route a parsed telemetry `packet` (dict) into graphs and map."""
@@ -484,7 +591,7 @@ class GroundStation(QMainWindow):
         else:
             self.showFullScreen()
 
-    def _load_command_buttons(self):
+    def load_command_buttons(self):
         """Load commands from commands.json and create buttons in the sidebar."""
         # load commands via Data interface
         commands = self.data.getCommands() or {}
@@ -516,7 +623,7 @@ class GroundStation(QMainWindow):
             self.command_buttons[name] = btn
             idx += 1
 
-    def _create_graph_container(self, name: str, graph_obj):
+    def create_graph_container(self, name: str, graph_obj):
         """Create a container widget that holds only the graph widget."""
         container = QWidget()
         v = QVBoxLayout()
@@ -545,15 +652,15 @@ class GroundStation(QMainWindow):
         except Exception:
             pass
         # remove container from grid layout
-        self._remove_widget_from_layout(container, self.graphs_grid)
+        self.remove_widget_from_layout(container, self.graphs_grid)
         # delete container
         container.setParent(None)
         # remove from dict
         del self.graphs[name]
         # rebuild grid to compact layout
-        self._rebuild_graph_grid()
+        self.rebuild_graph_grid()
 
-    def _remove_widget_from_layout(self, widget, layout):
+    def remove_widget_from_layout(self, widget, layout):
         for i in range(layout.count()):
             item = layout.itemAt(i)
             if item is None:
@@ -564,7 +671,7 @@ class GroundStation(QMainWindow):
                 item.widget().setParent(None)
                 return
 
-    def _rebuild_graph_grid(self):
+    def rebuild_graph_grid(self):
         # clear all items from the grid
         layout = self.graphs_grid
         # remove widgets
