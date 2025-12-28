@@ -3,7 +3,6 @@
     "theme": "light",
     "port": "COM4",
     "baudrate": 112500,
-    "commands": [],
     "GPS": true,
     "Voice": false
 }
