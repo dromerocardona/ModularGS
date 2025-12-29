@@ -12,6 +12,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 
 class Communication(QObject):
     telemetry_received = pyqtSignal(dict)
+    lastPacketRecieved = pyqtSignal(str)
 
     def __init__(self, serial_port, baud_rate=115200, timeout=4, csv_filename='data.csv'):
         QObject.__init__(self)
@@ -66,6 +67,10 @@ class Communication(QObject):
                 try:
                     line = self.ser.read_until(b'SHC').decode('utf-8').strip()
                     self.lastPacket = line
+                    try:
+                        self.lastPacketRecieved.emit(line)
+                    except Exception:
+                        pass
                     if line:
                         self.receivedPacketCount += 1
                         packet = self.parse_csv_data(line)
@@ -257,6 +262,10 @@ class Communication(QObject):
 
     def get_data(self):
         return self.data_list
+
+    def get_last_packet(self):
+        """Return the most recent raw packet string."""
+        return getattr(self, 'lastPacket', '')
 
     def reset_csv(self):
         with open(self.csv_filename, mode='w', newline='') as file:

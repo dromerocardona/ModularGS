@@ -111,6 +111,11 @@ class GroundStation(QMainWindow):
         self.footer_widget.setStyleSheet("background-color: #545780;")
         footer_height = screen_geometry.height() // 20
         self.footer_widget.setFixedHeight(footer_height)
+        # Footer label to display latest raw packet
+        self.footer_label = QLabel("Telemetry: ")
+        self.footer_label.setStyleSheet("color: white;")
+        self.footer_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        footer_layout.addWidget(self.footer_label)
 
         # Graphs layout
 
@@ -161,6 +166,12 @@ class GroundStation(QMainWindow):
         main_layout.addLayout(content_layout)
         main_layout.addWidget(self.footer_widget)
         self.createMenubar()
+
+        # Connect communication's last-packet signal for live updates
+        try:
+            self.comm.lastPacketRecieved.connect(self.on_last_packet)
+        except Exception:
+            pass
     
     def change_serial_port(self):
         selected_port = self.serial_port_dropdown.currentText()
@@ -751,6 +762,13 @@ class GroundStation(QMainWindow):
             layout.addWidget(container, row, col)
             idx += 1
         self._graph_grid_pos = idx
+
+    def on_last_packet(self, txt: str):
+        """Handler called by `Communication.lastPacketRecieved` with raw packet text."""
+        try:
+            self.footer_label.setText(txt or "")
+        except Exception:
+            pass
 
 # Run the application
 if __name__ == "__main__":
