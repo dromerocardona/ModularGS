@@ -36,6 +36,8 @@ class GroundStation(QMainWindow):
 
         self.data = Data() # Get preferences and other data
         self.comm = Communication(self.data.getPreference("port")) # Initialize communication
+        # track whether we're currently reading data from serial
+        self.reading_data = False
         # connect Communication's telemetry dict signal to handler
         try:
             self.comm.telemetry_received.connect(self.handle_telemetry)
@@ -173,6 +175,38 @@ class GroundStation(QMainWindow):
         except Exception:
             pass
     
+    def toggle_communication(self):
+        """Toggle communication on/off from UI button."""
+        try:
+            if not getattr(self, 'reading_data', False):
+                # Try to open serial port if needed
+                if self.comm.ser is None and getattr(self.comm, 'serial_port', None):
+                    try:
+                        self.comm.ser = serial.Serial(self.comm.serial_port, self.comm.baud_rate, timeout=self.comm.timeout)
+                    except Exception as e:
+                        QMessageBox.warning(self, "Serial Error", f"Failed to open serial port {self.comm.serial_port}: {e}")
+                        return
+                # start threads
+                self.comm.start_communication(None)
+                self.reading_data = True
+                try:
+                    self.start_stop_button.setText("Comm: ON")
+                except Exception:
+                    pass
+            else:
+                # stop threads
+                try:
+                    self.comm.stop_communication()
+                except Exception:
+                    pass
+                self.reading_data = False
+                try:
+                    self.start_stop_button.setText("Comm: OFF")
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Error toggling communication: {e}")
+    
     def change_serial_port(self):
         selected_port = self.serial_port_dropdown.currentText()
         if selected_port != self.comm.serial_port:
@@ -197,7 +231,10 @@ class GroundStation(QMainWindow):
         else:
             self.comm.stop_communication()
             self.reading_data = False
-            self.start_stop_button.setText("CXON")
+            try:
+                self.start_stop_button.setText("Comm: OFF")
+            except Exception:
+                pass
         print("Serial ports updated.")
 
     def change_baud_rate(self):
@@ -241,6 +278,33 @@ class GroundStation(QMainWindow):
 
     # Close Ground Station
     def closeEvent(self, event):
+        try:
+            # stop simulation if running
+            try:
+                if hasattr(self, 'comm'):
+                    self.comm.stop_simulation()
+            except Exception:
+                pass
+
+            # stop communication threads and close serial
+            try:
+                if hasattr(self, 'comm'):
+                    self.comm.stop_communication()
+            except Exception:
+                pass
+
+            # update UI state
+            try:
+                self.reading_data = False
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'start_stop_button'):
+                    self.start_stop_button.setText("Comm: OFF")
+            except Exception:
+                pass
+        except Exception:
+            pass
         event.accept()
     
     def createMenubar(self):
@@ -644,8 +708,22 @@ class GroundStation(QMainWindow):
         # Add default buttons
         default_buttons = {
             "Reset CSV": self.reset_csv_action,
-            "Download CSV": self.download_csv_action
+            "Download CSV": self.download_csv_action,
         }
+
+        # Insert communication toggle as a default button (keep a reference)
+        comm_btn = QPushButton("Comm: OFF")
+        comm_btn.setStyleSheet('background-color:#505050; color:white; padding:6px;')
+        comm_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        comm_btn.clicked.connect(self.toggle_communication)
+        # store as a special button on the grid
+        row = idx // cols
+        col = idx % cols
+        grid.addWidget(comm_btn, row, col)
+        grid.setColumnStretch(col, 1)
+        self.command_buttons["CommToggle"] = comm_btn
+        self.start_stop_button = comm_btn
+        idx += 1
         
         for name, action in default_buttons.items():
             btn = QPushButton(name)
