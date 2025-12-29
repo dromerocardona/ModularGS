@@ -61,28 +61,44 @@ class Communication(QObject):
 
     def read(self, signal_emitter):
         print(f"Serial port {self.serial_port} opened successfully.")
+        expected_fields = len(self.telemetryHeaders)  # Fixed number of expected CSV columns
+        
         with open(self.csv_filename, mode='a', newline='') as file:
             writer = csv.writer(file)
             while self.reading:
                 try:
-                    line = self.ser.read_until(b'SHC').decode('utf-8').strip()
+                    # Read a full newline-terminated line (blocks until \n or timeout)
+                    raw_line = self.ser.readline()
+                    if not raw_line:
+                        # Timeout occurred (no data for 'timeout' seconds)
+                        logging.warning("Read timeout - no data received")
+                        continue
+                    # Decode to string and strip whitespace/newlines
+                    line = raw_line.decode('utf-8', errors='ignore').strip()
+                    if not line:
+                        continue  # Empty line, skip
                     self.lastPacket = line
                     try:
                         self.lastPacketRecieved.emit(line)
                     except Exception:
                         pass
-                    if line:
-                        self.receivedPacketCount += 1
-                        packet = self.parse_csv_data(line)
-                        # emit structured telemetry dict for GUI routing
-                        try:
-                            if packet is not None:
-                                self.telemetry_received.emit(packet)
-                        except Exception:
-                            pass
-                        writer.writerow(line.split(','))
+                    csv_data = line.split(',')
+                    if len(csv_data) != expected_fields:
+                        logging.warning(f"Incomplete/malformed packet (expected {expected_fields} fields, got {len(csv_data)}): {line}")
+                        continue  # Drop invalid packets
+                    self.receivedPacketCount += 1
+                    packet = self.parse_csv_data(line)
+                    try:
+                        if packet is not None:
+                            self.telemetry_received.emit(packet)
+                    except Exception:
+                        pass
+                    # Write raw row to CSV
+                    writer.writerow(csv_data)
+                    
                 except serial.SerialException as e:
                     print(f"Serial error: {e}")
+                    break  # Or handle reconnection if needed
                 except Exception as e:
                     print(f"Error: {e}")
 
