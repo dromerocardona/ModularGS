@@ -44,9 +44,21 @@ class Communication(QObject):
             logging.error(f"Failed to open serial port {self.serial_port}: {e}")
             self.ser = None
 
-        with open(self.csv_filename, mode='a', newline='') as file:
-            writer = csv.writer(file)
-            if not file.tell():
+        # Ensure CSV header matches current telemetry headers. If the existing
+        # header differs (or file is missing/empty), reset the CSV with the
+        # correct header so subsequent runs use the updated format.
+        existing_header = None
+        try:
+            with open(self.csv_filename, mode='r', newline='') as f:
+                reader = csv.reader(f)
+                existing_header = next(reader, None)
+        except FileNotFoundError:
+            existing_header = None
+
+        if existing_header != self.telemetryHeaders:
+            # Overwrite the file with the new header (this resets data.csv)
+            with open(self.csv_filename, mode='w', newline='') as f:
+                writer = csv.writer(f)
                 writer.writerow(self.telemetryHeaders)
 
     def start_communication(self, signal_emitter):
