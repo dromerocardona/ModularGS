@@ -212,6 +212,11 @@ class GroundStation(QMainWindow):
         if selected_port != self.comm.serial_port:
             self.comm.stop_communication()
             self.comm.serial_port = selected_port
+            # persist selected port
+            try:
+                self.data.setPreference("port", selected_port)
+            except Exception:
+                pass
             try:
                 self.comm.ser = serial.Serial(selected_port, self.comm.baud_rate, timeout=self.comm.timeout)
                 print(f"Serial port changed to {selected_port}")
@@ -240,6 +245,11 @@ class GroundStation(QMainWindow):
     def change_baud_rate(self):
         selected_baud_rate = int(self.baud_rate_dropdown.currentText())
         self.comm.change_baud_rate(selected_baud_rate)
+        # persist selected baud rate
+        try:
+            self.data.setPreference("baudrate", selected_baud_rate)
+        except Exception:
+            pass
         print(f"Baud rate changed to {selected_baud_rate}")
 
     def change_serial_port_dialog(self):
@@ -253,6 +263,11 @@ class GroundStation(QMainWindow):
             if port != self.comm.serial_port:
                 self.comm.stop_communication()
                 self.comm.serial_port = port
+                # persist selected port
+                try:
+                    self.data.setPreference("port", port)
+                except Exception:
+                    pass
                 try:
                     self.comm.ser = serial.Serial(port, self.comm.baud_rate, timeout=self.comm.timeout)
                     print(f"Serial port changed to {port}")
@@ -274,6 +289,11 @@ class GroundStation(QMainWindow):
         if valid and baud:
             selected_baud_rate = int(baud)
             self.comm.change_baud_rate(selected_baud_rate)
+            # persist selected baud rate
+            try:
+                self.data.setPreference("baudrate", selected_baud_rate)
+            except Exception:
+                pass
             print(f"Baud rate changed to {selected_baud_rate}")
 
     # Close Ground Station
