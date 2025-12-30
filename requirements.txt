@@ -1,0 +1,4 @@
+PyQt5~=5.15.18
+pyqtgraph~=0.14.0
+PyQtWebEngine~=5.15.7
+pyserial~=3.5
