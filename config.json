@@ -1,0 +1,70 @@
+{
+    "commands": {
+        "CXON": "CMD,3195,CX,ON",
+        "CXOFF": "CMD,3195,CX,OFF"
+    },
+
+    "preferences": {
+        "title": "Ground Station",
+        "theme": "light",
+        "port": "/dev/ttyACM0",
+        "baudrate": 9600,
+        "GPS": true,
+        "Voice": false,
+        "SimulationMode": false,
+        "sidebar_fields": [
+            "ALTITUDE",
+            "AUTO_GYRO_ROTATION_RATE",
+            "CMD_ECHO",
+            "GPS_ALTITUDE",
+            "GPS_LATITUDE",
+            "GPS_LONGITUDE",
+            "GPS_SATS",
+            "GPS_TIME",
+            "GYRO_P",
+            "GYRO_R",
+            "GYRO_Y",
+            "MAG_P",
+            "MAG_R",
+            "MAG_Y",
+            "MISSION_TIME",
+            "MODE",
+            "PACKET_COUNT",
+            "PRESSURE",
+            "STATE",
+            "TEAM_ID",
+            "TEAM_NAME",
+            "TEMPERATURE",
+            "VOLTAGE"
+        ]
+    },
+
+    "telemetryFields": {
+        "TEAM_ID": "",
+        "MISSION_TIME": "",
+        "PACKET_COUNT": "",
+        "MODE": "",
+        "STATE": "",
+        "ALTITUDE": "m",
+        "TEMPERATURE": "°C",
+        "PRESSURE": "Pa",
+        "VOLTAGE": "V",
+        "GYRO_R": "°/s",
+        "GYRO_P": "°/s",
+        "GYRO_Y": "°/s",
+        "ACCEL_R": "m/s²",
+        "ACCEL_P": "m/s²",
+        "ACCEL_Y": "m/s²",
+        "MAG_R": "Gauss",
+        "MAG_P": "Gauss",
+        "MAG_Y": "Gauss",
+        "AUTO_GYRO_ROTATION_RATE": "°/s",
+        "GPS_TIME": "",
+        "GPS_ALTITUDE": "m",
+        "GPS_LATITUDE": "°",
+        "GPS_LONGITUDE": "°",
+        "GPS_SATS": "",
+        "CMD_ECHO": "",
+        "TEAM_NAME": ""
+    }
+}

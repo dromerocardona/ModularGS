@@ -2,58 +2,76 @@ import json
 
 class Data:
     def __init__(self):
-        user_preferences = {}
-        telemetryFields = {}
+        # Load all config from single file
+        self.config_file = 'config.json'
+        self.config = {}
+        
+        try:
+            with open(self.config_file, 'r') as file:
+                self.config = json.load(file)
+        except FileNotFoundError:
+            # Initialize with empty structure if file doesn't exist
+            self.config = {
+                "commands": {},
+                "preferences": {},
+                "telemetryFields": {}
+            }
+            self._save_config()
+        
+        self.preferences = self.config.get("preferences", {})
+        self.telemetryFields = self.config.get("telemetryFields", {})
+        self.commands = self.config.get("commands", {})
 
-        with open('preferences.json', 'r') as file:
-            loaded_preferences = json.load(file)
-            user_preferences.update(loaded_preferences)
-        self.preferences = user_preferences
-
-        with open('telemetryFields.json', 'r') as file:
-            loaded_fields = json.load(file)
-            telemetryFields.update(loaded_fields)
-        self.telemetryFields = telemetryFields
+    def _save_config(self):
+        """Save all config data to the single config.json file."""
+        self.config["preferences"] = self.preferences
+        self.config["telemetryFields"] = self.telemetryFields
+        self.config["commands"] = self.commands
+        with open(self.config_file, 'w') as file:
+            json.dump(self.config, file, indent=4)
 
     def savePreferences(self):
-        with open('preferences.json', 'w') as file:
-            json.dump(self.preferences, file, indent=4)
+        self._save_config()
 
     def getPreferences(self):
         return self.preferences
     
     def setPreference(self, key, value):
         self.preferences[key] = value
-        self.savePreferences()
+        self._save_config()
 
     def getPreference(self, key):
         return self.preferences.get(key, None)
     
     def addCommand(self, command):
+        if "commands" not in self.preferences:
+            self.preferences["commands"] = []
         self.preferences["commands"].append(command)
-        self.savePreferences()
+        self._save_config()
 
     def removeCommand(self, command):
-        if command in self.preferences["commands"]:
+        if "commands" in self.preferences and command in self.preferences["commands"]:
             self.preferences["commands"].remove(command)
-            self.savePreferences()
+            self._save_config()
 
     def clearCommands(self):
         self.preferences["commands"] = []
-        self.savePreferences()
+        self._save_config()
 
     def addField(self, field):
+        if "fields" not in self.preferences:
+            self.preferences["fields"] = []
         self.preferences["fields"].append(field)
-        self.savePreferences()
+        self._save_config()
 
     def removeField(self, field):
-        if field in self.preferences["fields"]:
+        if "fields" in self.preferences and field in self.preferences["fields"]:
             self.preferences["fields"].remove(field)
-            self.savePreferences()
+            self._save_config()
 
     def clear_fields(self):
         self.preferences["fields"] = []
-        self.savePreferences()
+        self._save_config()
     
     def getTelemetryFields(self):
         return self.telemetryFields
@@ -63,28 +81,13 @@ class Data:
     
     def setTelemetryField(self, key, value):
         self.telemetryFields[key] = value
-        self.saveTelemetryFields()
+        self._save_config()
     
     def saveTelemetryFields(self):
-        with open('telemetryFields.json', 'w') as file:
-            json.dump(self.telemetryFields, file, indent=4)
+        self._save_config()
 
     def getCommands(self):
         """Return the commands mapping.
         Returns a dict mapping button label -> command string.
         """
-        # If we already loaded commands, return cached
-        if hasattr(self, 'commands') and self.commands:
-            return self.commands
-
-        commands = {}
-        try:
-            with open('commands.json', 'r', encoding='utf-8') as f:
-                loaded = json.load(f)
-                if isinstance(loaded, dict):
-                    commands.update(loaded)
-        except Exception:
-            pass
-
-        self.commands = commands
-        return commands
+        return self.commands
