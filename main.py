@@ -78,6 +78,7 @@ class GroundStation(QMainWindow):
         sidebar_groupbox.setStyleSheet("background-color: #d1d1f0;")
         sidebar_groupbox.setStyleSheet("QGroupBox { background-color: #d1d1f0; }")
         sidebar_groupbox_layout = QVBoxLayout()
+        sidebar_groupbox.setStyleSheet("QGroupBox { background-color: #d1d1f0; border: 1px solid black; }")
         sidebar_groupbox.setLayout(sidebar_groupbox_layout)
         # store as attributes so they can be modified later
         self.sidebar_groupbox = sidebar_groupbox
@@ -685,7 +686,8 @@ class GroundStation(QMainWindow):
         self.sidebar_labels = {}
         for name in sorted(getattr(self, 'sidebar_fields', set())):
             lbl = QLabel(f"{name}: ")
-            lbl.setStyleSheet("color: black; font-weight: bold;")
+            # ensure the label background matches the groupbox background
+            lbl.setStyleSheet("color: black; font-weight: bold; background-color: #d1d1f0;")
             lbl.setWordWrap(True)
             lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             self.sidebar_groupbox_layout.addWidget(lbl)
