@@ -79,6 +79,9 @@ class GroundStation(QMainWindow):
         sidebar_groupbox.setStyleSheet("QGroupBox { background-color: #d1d1f0; }")
         sidebar_groupbox_layout = QVBoxLayout()
         sidebar_groupbox.setLayout(sidebar_groupbox_layout)
+        # store as attributes so they can be modified later
+        self.sidebar_groupbox = sidebar_groupbox
+        self.sidebar_groupbox_layout = sidebar_groupbox_layout
         buttons_grid = QGridLayout()
         buttons_grid.setAlignment(Qt.AlignCenter)
         sidebar_layout.addWidget(sidebar_groupbox)
@@ -102,6 +105,18 @@ class GroundStation(QMainWindow):
         self.command_buttons = {}
         try:
             self.load_command_buttons()
+        except Exception:
+            pass
+
+        # restore sidebar field selections from preferences and build labels
+        try:
+            pref = self.data.getPreference("sidebar_fields") or []
+            self.sidebar_fields = set(pref)
+        except Exception:
+            self.sidebar_fields = set()
+        self.sidebar_labels = {}
+        try:
+            self.rebuild_sidebar_groupbox()
         except Exception:
             pass
 
@@ -368,6 +383,11 @@ class GroundStation(QMainWindow):
         manage_graphs_action.triggered.connect(self.open_manage_graphs_dialog)
         view_menu.addAction(manage_graphs_action)
 
+        manage_sidebar_action = QAction("Manage Sidebar...", self)
+        manage_sidebar_action.setShortcut("Ctrl+Shift+S")
+        manage_sidebar_action.triggered.connect(self.open_manage_sidebar_dialog)
+        view_menu.addAction(manage_sidebar_action)
+
         toggle_gps_action = QAction("Toggle GPS Map", self)
         toggle_gps_action.setShortcut("Ctrl+M")
         toggle_gps_action.setCheckable(True)
@@ -594,6 +614,83 @@ class GroundStation(QMainWindow):
         dialog.setLayout(layout)
         dialog.exec_()
 
+    def open_manage_sidebar_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Manage Sidebar")
+        dialog.setStyleSheet("background-color: #2e2e2e; color: white;")
+        layout = QVBoxLayout()
+
+        list_widget = QListWidget()
+        list_widget.setStyleSheet("background-color: #3a3a3a; color: white; selection-background-color: #505050;")
+
+        try:
+            fields = self.data.getTelemetryFields() or {}
+            keys = sorted(fields.keys())
+        except Exception:
+            keys = []
+
+        # populate list with checkable items (include all fields, not just numeric)
+        for k in keys:
+            list_widget.addItem(k)
+            it = list_widget.item(list_widget.count() - 1)
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+            it.setCheckState(Qt.Checked if k in getattr(self, 'sidebar_fields', set()) else Qt.Unchecked)
+
+        layout.addWidget(list_widget)
+
+        buttons_layout = QHBoxLayout()
+        ok_btn = QPushButton("Apply")
+        cancel_btn = QPushButton("Cancel")
+        ok_btn.setStyleSheet("background-color:#505050; color:white; padding:6px;")
+        cancel_btn.setStyleSheet("background-color:#505050; color:white; padding:6px;")
+        buttons_layout.addWidget(ok_btn)
+        buttons_layout.addWidget(cancel_btn)
+        layout.addLayout(buttons_layout)
+
+        def on_apply():
+            checked = []
+            for i in range(list_widget.count()):
+                it = list_widget.item(i)
+                if it.checkState() == Qt.Checked:
+                    checked.append(it.text())
+            try:
+                # persist selection
+                self.data.setPreference('sidebar_fields', checked)
+            except Exception:
+                pass
+            self.sidebar_fields = set(checked)
+            try:
+                self.rebuild_sidebar_groupbox()
+            except Exception:
+                pass
+            dialog.accept()
+
+        ok_btn.clicked.connect(on_apply)
+        cancel_btn.clicked.connect(dialog.reject)
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def rebuild_sidebar_groupbox(self):
+        # clear previous widgets
+        try:
+            while self.sidebar_groupbox_layout.count():
+                item = self.sidebar_groupbox_layout.takeAt(0)
+                w = item.widget()
+                if w is not None:
+                    w.setParent(None)
+        except Exception:
+            pass
+
+        # add labels for selected sidebar fields
+        self.sidebar_labels = {}
+        for name in sorted(getattr(self, 'sidebar_fields', set())):
+            lbl = QLabel(f"{name}: ")
+            lbl.setStyleSheet("color: black; font-weight: bold;")
+            lbl.setWordWrap(True)
+            lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.sidebar_groupbox_layout.addWidget(lbl)
+            self.sidebar_labels[name] = lbl
+
     def create_graphs_for_fields(self, selected_fields, fields_units):
         # Only consider numeric fields (those with units)
         numeric_keys = {k for k, u in (fields_units or {}).items() if u}
@@ -688,6 +785,17 @@ class GroundStation(QMainWindow):
             except Exception:
                 continue
 
+        # update sidebar labels for any selected fields
+        try:
+            for name, lbl in getattr(self, 'sidebar_labels', {}).items():
+                v = packet.get(name)
+                if v is None:
+                    lbl.setText(f"{name}: ")
+                else:
+                    lbl.setText(f"{name}: {v}")
+        except Exception:
+            pass
+
     def toggle_fullscreen(self):
         if self.isFullScreen():
             self.showNormal()
@@ -733,7 +841,7 @@ class GroundStation(QMainWindow):
 
         # Insert communication toggle as a default button (keep a reference)
         comm_btn = QPushButton("Comm: OFF")
-        comm_btn.setStyleSheet('background-color:#505050; color:white; padding:6px;')
+        comm_btn.setStyleSheet('background-color:#505050; color:white; padding:6px; font-size:9px;')
         comm_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         comm_btn.clicked.connect(self.toggle_communication)
         # store as a special button on the grid
@@ -747,7 +855,7 @@ class GroundStation(QMainWindow):
         
         for name, action in default_buttons.items():
             btn = QPushButton(name)
-            btn.setStyleSheet('background-color:#505050; color:white; padding:6px;')
+            btn.setStyleSheet('background-color:#505050; color:white; padding:6px; font-size:9px;')
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             btn.clicked.connect(action)
             row = idx // cols
@@ -759,7 +867,7 @@ class GroundStation(QMainWindow):
         
         for name, cmd in commands.items():
             btn = QPushButton(name)
-            btn.setStyleSheet('background-color:#505050; color:white; padding:6px;')
+            btn.setStyleSheet('background-color:#505050; color:white; padding:6px; font-size:9px;')
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             def make_send(c):
                 return lambda: self.comm.send_command(c)
@@ -864,7 +972,7 @@ class GroundStation(QMainWindow):
     def on_last_packet(self, txt: str):
         """Handler called by `Communication.lastPacketRecieved` with raw packet text."""
         try:
-            self.footer_label.setText(txt or "")
+            self.footer_label.setText(f"Telemetry: {txt or ''}")
         except Exception:
             pass
 

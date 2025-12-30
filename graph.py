@@ -84,8 +84,8 @@ class Graph(QtCore.QObject):
         self.data.append(value)
         self.timestamps.append(elapsed)
 
-        self.data = self.data[-100:]
-        self.timestamps = self.timestamps[-100:]
+        self.data = self.data[-50:]
+        self.timestamps = self.timestamps[-50:]
 
     def _update_gui(self):
         if not self.timestamps:
@@ -166,10 +166,10 @@ class rpyGraph(Graph):
         self.data_y.append(y)
         self.timestamps.append(elapsed)
 
-        self.data_r = self.data_r[-100:]
-        self.data_p = self.data_p[-100:]
-        self.data_y = self.data_y[-100:]
-        self.timestamps = self.timestamps[-100:]
+        self.data_r = self.data_r[-50:]
+        self.data_p = self.data_p[-50:]
+        self.data_y = self.data_y[-50:]
+        self.timestamps = self.timestamps[-50:]
 
     def _update_gui(self):
         if not self.timestamps:
