@@ -2,10 +2,9 @@ import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QVBoxLayout,
     QHBoxLayout, QPushButton, QComboBox, QGroupBox, QGridLayout, QSpacerItem,
     QSizePolicy, QToolBar, QAction, QFileDialog, QInputDialog, QMessageBox,
-    QDialog, QListWidget, QAbstractItemView)
-from PyQt5.QtGui import QIcon
-from PyQt5.QtGui import QFont, QPixmap
-from PyQt5.QtCore import Qt, QObject, pyqtSignal
+    QDialog, QListWidget, QAbstractItemView, QProgressBar, QGraphicsOpacityEffect)
+from PyQt5.QtGui import QFont, QPixmap, QIcon
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QTimer, QPropertyAnimation
 from communication import Communication
 from serial.tools import list_ports
 from typing import Iterable
@@ -13,9 +12,101 @@ from map import GPSMap
 from data import Data
 from graph import Graph, rpyGraph
 import serial
+import time
 
 def get_available_serial_ports() -> Iterable[str]:
     return map(lambda c: c.device, list_ports.comports())
+
+# Loading screen
+class LoadingScreen(QWidget):
+    finished = pyqtSignal()
+
+    def center_window(self):
+        screen_geometry = QApplication.desktop().screenGeometry()
+        x = (screen_geometry.width() - self.width()) // 2
+        y = (screen_geometry.height() - self.height()) // 2
+        self.move(x, y)
+
+    def __init__(self):
+        super().__init__()
+
+        # Set title, size, icon
+        self.setWindowTitle("Loading...")
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        self.setGeometry(100, 100, 1200, 800)
+
+        # Set background image and color
+        self.setStyleSheet("""
+            QWidget {
+                background-image: url('assets/loading_background.png');
+                background-repeat: no-repeat;
+                background-position: center;
+                background size: cover;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # Add loading image
+        central_widget = QWidget(self)
+        central_layout = QVBoxLayout(central_widget)
+        central_layout.setSpacing(0)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Add loading image
+        loading_pixmap = QPixmap('logo.png')
+        self.image_width, image_height = 500, 500
+        loading_pixmap = loading_pixmap.scaled(self.image_width, image_height)
+        self.image_label = QLabel()
+        self.image_label.setPixmap(loading_pixmap)
+        self.image_label.setAlignment(Qt.AlignCenter)
+        central_layout.addWidget(self.image_label)
+
+        layout.addWidget(central_widget)
+
+        # Add progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #8f8f91;
+                border-radius: 5px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #b0aee7;
+                width: 20px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
+
+        # Start timer
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_progress)
+        self.timer.start(50)
+
+        # Add fade-in effect
+        self.opacity_effect = QGraphicsOpacityEffect()
+        self.setGraphicsEffect(self.opacity_effect)
+        self.opacity_animation = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.opacity_animation.setDuration(2000)
+        self.opacity_animation.setStartValue(0)
+        self.opacity_animation.setEndValue(1)
+        self.opacity_animation.start()
+
+        self.center_window()
+
+    # Update progress bar
+    def update_progress(self):
+        current_value = self.progress_bar.value()
+        if current_value < 100:
+            self.progress_bar.setValue(current_value + 5)
+        else:
+            self.timer.stop()
+            self.finished.emit()
+            self.close()
 
 # Used for updating graphs, telemetry, etc.
 class SignalEmitter(QObject):
@@ -57,7 +148,7 @@ class GroundStation(QMainWindow):
         header_widget.setFixedHeight(header_height)
         header_widget.setStyleSheet("background-color: #545454;")
 
-        header_text = QLabel("SHC GROUND STATION")
+        header_text = QLabel(self.data.getPreference("title"))
         header_text.setAlignment(Qt.AlignCenter)
         header_text.setFont(QFont("Arial", 15, QFont.Bold))
         header_text.setStyleSheet("color: white;")
@@ -135,7 +226,7 @@ class GroundStation(QMainWindow):
         self.footer_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         footer_layout.addWidget(self.footer_label)
 
-        # Graphs layout
+        ### Graphs layout ###
 
         self.graphs_widget = QWidget()
         graphs_layout = QVBoxLayout()
@@ -183,7 +274,7 @@ class GroundStation(QMainWindow):
 
         main_layout.addLayout(content_layout)
         main_layout.addWidget(self.footer_widget)
-        self.createMenubar()
+        self.create_menubar()
 
         # Connect communication's last-packet signal for live updates
         try:
@@ -343,7 +434,7 @@ class GroundStation(QMainWindow):
             pass
         event.accept()
     
-    def createMenubar(self):
+    def create_menubar(self):
         menubar = self.menuBar()
         menubar.setStyleSheet(
             "QMenuBar { background-color: #545454; color: white; }"
@@ -981,8 +1072,11 @@ class GroundStation(QMainWindow):
 # Run the application
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-
     main_window = GroundStation()
-    main_window.show()
+    main_window.hide()
+
+    loading_screen = LoadingScreen()
+    loading_screen.finished.connect(main_window.showMaximized)
+    loading_screen.show()
 
     sys.exit(app.exec_())
