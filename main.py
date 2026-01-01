@@ -38,7 +38,7 @@ class LoadingScreen(QWidget):
         # Set background image and color
         self.setStyleSheet("""
             QWidget {
-                background-image: url('assets/loading_background.png');
+                background-image: url('assets/loading_background.JPG');
                 background-repeat: no-repeat;
                 background-position: center;
                 background size: cover;
@@ -56,7 +56,7 @@ class LoadingScreen(QWidget):
         central_layout.setContentsMargins(0, 0, 0, 0)
 
         # Add loading image
-        loading_pixmap = QPixmap('logo.png')
+        loading_pixmap = QPixmap('assets/logo.png')
         self.image_width, image_height = 500, 500
         loading_pixmap = loading_pixmap.scaled(self.image_width, image_height)
         self.image_label = QLabel()
