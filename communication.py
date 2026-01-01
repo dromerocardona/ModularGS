@@ -350,14 +350,3 @@ class Communication(QObject):
             return val
         except (IndexError, ValueError, TypeError):
             return default
-
-    def __getattr__(self, name):
-        #Backward-compatible dynamic getter: allow `get_<FIELD>()` calls.
-        #Example: `comm.get_ALTITUDE()` will call `getField('ALTITUDE')`.
-
-        if name.startswith('get_'):
-            field = name[4:]
-            self.ensureFieldIndex()
-            if field in self.field_index:
-                return lambda default=None: self.getField(field, default=default)
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
