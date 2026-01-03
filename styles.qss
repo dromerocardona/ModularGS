@@ -1,0 +1,79 @@
+/* Global styles for the application */
+QMainWindow {
+    background-color: #070B57;
+}
+
+QWidget {
+    font-family: Arial;
+}
+
+QLabel {
+    color: black;
+    font-weight: bold;
+}
+
+/* Header */
+#header-widget {
+    background-color: #545454;
+}
+
+#header-label {
+    color: white;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+/* Sidebar */
+#sidebar-widget {
+    background-color: #8183A3;
+}
+
+QGroupBox {
+    background-color: #d1d1f0;
+    border: 1px solid black;
+    font-weight: bold;
+}
+
+/* Buttons */
+QPushButton {
+    background-color: #505050;
+    color: white;
+    padding: 6px;
+    font-size: 9px;
+    border: none;
+    border-radius: 3px;
+}
+
+QPushButton:hover {
+    background-color: #656565;
+}
+
+QPushButton:pressed {
+    background-color: #404040;
+}
+
+/* Progress Bar (for loading) */
+QProgressBar {
+    border: 2px solid #8f8f91;
+    border-radius: 5px;
+    text-align: center;
+    background-color: #f0f0f0;
+}
+
+QProgressBar::chunk {
+    background-color: #b0aee7;
+    width: 20px;
+}
+
+/* Footer */
+#footer-widget {
+    background-color: #545454;
+    color: white;
+}
+
+/* Sidebar labels */
+.sidebar-label {
+    color: black;
+    font-weight: bold;
+    word-wrap: break-word;
+}
