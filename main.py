@@ -32,6 +32,7 @@ class LoadingScreen(QWidget):
 
         # Set title, size, icon
         self.setWindowTitle("Loading...")
+        self.setWindowIcon(QIcon('assets/logo.png'))
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.setGeometry(100, 100, 1200, 800)
 
@@ -121,6 +122,7 @@ class GroundStation(QMainWindow):
         super().__init__()
         self.setWindowTitle("GS")
         self.setGeometry(100, 100, 1200, 800)
+        self.setWindowIcon(QIcon('assets/logo.png'))
         self.setStyleSheet("background-color: #070B57;")
         self.showMaximized()
         screen_geometry = QApplication.desktop().screenGeometry()
